@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=6.2.0" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.2.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.2.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.2.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.2.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '6.2.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="最近需要做一些实时分析日志的工作，理所当然，想到了用spark streaming，但是日志怎么收集，如何处理，分析结果如何展示，这些问题让我一脸懵逼。 经过一段时间的学习，最后确定了方案。 利用apache flume进行日志收集，收集的日志导入apache kafka，spark streaming订阅kafka日志流做实时分析，分析结果在apache zeppelin中做实时展示。">
+<meta name="keywords" content="spark,flume,kafka">
+<meta property="og:type" content="article">
+<meta property="og:title" content="日志实时分析">
+<meta property="og:url" content="https://cxmokai.github.io/2016/09/18/日志实时分析/index.html">
+<meta property="og:site_name" content="500">
+<meta property="og:description" content="最近需要做一些实时分析日志的工作，理所当然，想到了用spark streaming，但是日志怎么收集，如何处理，分析结果如何展示，这些问题让我一脸懵逼。 经过一段时间的学习，最后确定了方案。 利用apache flume进行日志收集，收集的日志导入apache kafka，spark streaming订阅kafka日志流做实时分析，分析结果在apache zeppelin中做实时展示。">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2018-05-14T12:59:36.330Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="日志实时分析">
+<meta name="twitter:description" content="最近需要做一些实时分析日志的工作，理所当然，想到了用spark streaming，但是日志怎么收集，如何处理，分析结果如何展示，这些问题让我一脸懵逼。 经过一段时间的学习，最后确定了方案。 利用apache flume进行日志收集，收集的日志导入apache kafka，spark streaming订阅kafka日志流做实时分析，分析结果在apache zeppelin中做实时展示。">
+
+
+
+
+
+
+  <link rel="canonical" href="https://cxmokai.github.io/2016/09/18/日志实时分析/"/>
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>日志实时分析 | 500</title>
+  
+
+
+
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">500</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+      
+        <p class="site-subtitle">菜鸟程序员</p>
+      
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br />Home</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />Tags</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />Archives</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+            
+
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://cxmokai.github.io/2016/09/18/日志实时分析/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="cxmokai">
+      <meta itemprop="description" content="会18种语言的Hello World">
+      <meta itemprop="image" content="https://avatars0.githubusercontent.com/u/11897616?v=3&s=140">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="500">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">日志实时分析
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+
+              
+                
+              
+
+              <time title="Created: 2016-09-18 12:00:21" itemprop="dateCreated datePublished" datetime="2016-09-18T12:00:21+08:00">2016-09-18</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">Edited on</span>
+                
+                <time title="Modified: 2018-05-14 20:59:36" itemprop="dateModified" datetime="2018-05-14T20:59:36+08:00">2018-05-14</time>
+              
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>最近需要做一些实时分析日志的工作，理所当然，想到了用<code>spark streaming</code>，但是日志怎么收集，如何处理，分析结果如何展示，这些问题让我一脸懵逼。</p>
+<p>经过一段时间的学习，最后确定了方案。</p>
+<p>利用<a href="https://flume.apache.org/index.html" target="_blank" rel="noopener">apache flume</a>进行日志收集，收集的日志导入<a href="http://kafka.apache.org/" target="_blank" rel="noopener">apache kafka</a>，<a href="http://spark.apache.org/" target="_blank" rel="noopener">spark streaming</a>订阅kafka日志流做实时分析，分析结果在<a href="zeppelin.apache.org">apache zeppelin</a>中做实时展示。<br><a id="more"></a></p>
+<h2 id="日志生成"><a href="#日志生成" class="headerlink" title="日志生成"></a>日志生成</h2><p>利用<code>python</code>脚本实时生成测试日志。<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> time</span><br><span class="line"><span class="keyword">import</span> random</span><br><span class="line"><span class="keyword">from</span> datetime <span class="keyword">import</span> datetime</span><br><span class="line">path = <span class="string">"/Users/cxmokai/Desktop/test.log"</span></span><br><span class="line"><span class="keyword">while</span> <span class="keyword">True</span>:</span><br><span class="line">    number = random.randint(<span class="number">1</span>, <span class="number">100</span>)</span><br><span class="line">    now = datetime.strftime(datetime.now(), <span class="string">"%Y-%m-%d %H:%M:%S"</span>)</span><br><span class="line">    <span class="keyword">with</span> open(path, <span class="string">'w'</span>) <span class="keyword">as</span> f:</span><br><span class="line">        <span class="keyword">if</span> number % <span class="number">2</span>:</span><br><span class="line">            f.write(<span class="string">"[%s] ODD %d\n"</span> % (now, number))</span><br><span class="line">        <span class="keyword">else</span>:</span><br><span class="line">            f.write(<span class="string">"[%s] EVEN %d\n"</span> % (now, number))</span><br><span class="line">        time.sleep(<span class="number">1</span>)</span><br></pre></td></tr></table></figure></p>
+<p>这段脚本实时生成1到100之间的随机整数，记录该数是奇数还是偶数及其产生的时间。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">[2016-09-18 15:03:59] EVEN 92</span><br><span class="line">[2016-09-18 15:04:00] EVEN 34</span><br><span class="line">[2016-09-18 15:04:01] EVEN 82</span><br><span class="line">[2016-09-18 15:04:02] EVEN 38</span><br></pre></td></tr></table></figure></p>
+<h2 id="Kafka服务"><a href="#Kafka服务" class="headerlink" title="Kafka服务"></a>Kafka服务</h2><p>下载最新的<code>kafka</code><a href="http://kafka.apache.org/downloads.html" target="_blank" rel="noopener">安装包</a>，现在最新的版本是<code>0.10.0.1</code>。</p>
+<p>下载完后，解压，开箱即用。</p>
+<p>在启动<code>kafka</code>之前需要先启动<code>zookeeper</code>，下载的安装包中，自带<code>zookeeper</code>。</p>
+<p>启动<code>zookeeper</code><br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"># 在kafka目录下</span><br><span class="line">bin/zookeeper-server-start.sh config/zookeeper.properties</span><br></pre></td></tr></table></figure></p>
+<p>启动<code>kafka</code><br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"># 在kafka目录下</span><br><span class="line">bin/kafka-server-start.sh config/server.properties</span><br></pre></td></tr></table></figure></p>
+<p><code>kafka</code>默认启动在9092端口，<code>zookeeper</code>默认启动在2181端口，可以在<code>config</code>目录下的<code>server.properties</code>和<code>zookeeper.properties</code>中修改。</p>
+<h2 id="Flume服务"><a href="#Flume服务" class="headerlink" title="Flume服务"></a>Flume服务</h2><p>下载最新的<code>flume</code><a href="https://flume.apache.org/download.html" target="_blank" rel="noopener">安装包</a>，最新版本为<code>1.6.0</code>。</p>
+<p>下载完后，解压。</p>
+<p>配置<code>flume</code>：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br></pre></td><td class="code"><pre><span class="line">a1.sources = r1</span><br><span class="line">a1.channels = c1</span><br><span class="line">a1.sinks = k1</span><br><span class="line"></span><br><span class="line"># 从我们生成的测试日志文件中获得日志</span><br><span class="line">a1.sources.r1.channels = c1</span><br><span class="line">a1.sources.r1.type = exec</span><br><span class="line">a1.sources.r1.command = tail -f /Users/cxmokai/Desktop/test.log</span><br><span class="line"></span><br><span class="line"># 通过正则拦截器，在日志的header中添加`topic`字段，将奇数和偶数分为两个不同的`topic`</span><br><span class="line">a1.sources.r1.interceptors = i1</span><br><span class="line">a1.sources.r1.interceptors.i1.type = regex_extractor</span><br><span class="line">a1.sources.r1.interceptors.i1.regex = ^.*(ODD|EVEN).*$</span><br><span class="line">a1.sources.r1.interceptors.i1.serializers = s1</span><br><span class="line">a1.sources.r1.interceptors.i1.serializers.s1.name = topic</span><br><span class="line"></span><br><span class="line">a1.channels.c1.type = memory</span><br><span class="line">a1.channels.c1.capacity = 10000</span><br><span class="line">a1.channels.c1.transactionCapacity = 100</span><br><span class="line"></span><br><span class="line"># 收集日志到kafka</span><br><span class="line">a1.sinks.k1.channel = c1</span><br><span class="line">a1.sinks.k1.type = org.apache.flume.sink.kafka.KafkaSink</span><br><span class="line">a1.sinks.k1.brokerList = localhost:9092</span><br></pre></td></tr></table></figure></p>
+<p>启动<code>flume</code><br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bin/flume-ng agent --conf ./conf/ -f conf/flume.conf -Dflume.root.logger=DEBUG,console -n a1</span><br></pre></td></tr></table></figure></p>
+<h2 id="Spark-Streaming分析"><a href="#Spark-Streaming分析" class="headerlink" title="Spark Streaming分析"></a>Spark Streaming分析</h2><figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 日志类</span></span><br><span class="line"><span class="keyword">package</span> logs</span><br><span class="line"><span class="keyword">import</span> scala.util.<span class="type">Try</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">OddEvenLog</span>(<span class="params">var date: <span class="type">String</span>, var time:<span class="type">String</span>, var kind:<span class="type">String</span>, var number:<span class="type">String</span></span>) <span class="keyword">extends</span> <span class="title">Serializable</span></span></span><br><span class="line"><span class="class"></span></span><br><span class="line"><span class="class"><span class="title">object</span> <span class="title">OddEvenLog</span> </span>&#123;</span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">val</span> <span class="type">LOG_ENTRY_PATTERN</span> = <span class="string">""</span><span class="string">"^\[(\S+) (\S+)\] (\S+) (\S+)"</span><span class="string">""</span>.r</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">parseFromLogLine</span></span>(logline: <span class="type">String</span>): <span class="type">Try</span>[<span class="type">OddEvenLog</span>] = &#123;</span><br><span class="line">    <span class="type">Try</span> &#123;</span><br><span class="line">      <span class="keyword">val</span> <span class="type">LOG_ENTRY_PATTERN</span>(a, b, c, d) = logline</span><br><span class="line">      <span class="keyword">new</span> <span class="type">OddEvenLog</span>(a, b, c, d)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<figure class="highlight scala"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// 分析</span></span><br><span class="line"><span class="keyword">import</span> kafka.serializer.<span class="type">StringDecoder</span></span><br><span class="line"><span class="keyword">import</span> org.apache.spark.<span class="type">SparkConf</span></span><br><span class="line"><span class="keyword">import</span> org.apache.spark.streaming._</span><br><span class="line"><span class="keyword">import</span> org.apache.spark.streaming.kafka._</span><br><span class="line"><span class="keyword">import</span> logs.<span class="type">OddEvenLog</span>.parseFromLogLine</span><br><span class="line"><span class="keyword">import</span> org.apache.log4j.<span class="type">Logger</span></span><br><span class="line"><span class="keyword">import</span> org.apache.log4j.<span class="type">Level</span></span><br><span class="line"></span><br><span class="line"><span class="class"><span class="keyword">object</span> <span class="title">LogAnalyzerKafka</span> </span>&#123;</span><br><span class="line">  <span class="keyword">val</span> checkpointPath = <span class="string">"hdfs://localhost:9000/tmp"</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">main</span></span>(args: <span class="type">Array</span>[<span class="type">String</span>]): <span class="type">Unit</span> = &#123;</span><br><span class="line">    <span class="type">Logger</span>.getLogger(<span class="string">"org"</span>).setLevel(<span class="type">Level</span>.<span class="type">OFF</span>)</span><br><span class="line">    <span class="keyword">val</span> ssc = <span class="type">StreamingContext</span>.getOrCreate(checkpointPath, createStreamingContext)</span><br><span class="line">    <span class="comment">// Start the computation</span></span><br><span class="line">    ssc.start()</span><br><span class="line">    ssc.awaitTermination()</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">createStreamingContext</span></span>(): <span class="type">StreamingContext</span> = &#123;</span><br><span class="line">    <span class="keyword">val</span> conf = <span class="keyword">new</span> <span class="type">SparkConf</span>()</span><br><span class="line">      .setAppName(<span class="string">"Logs Analyzer Kafka"</span>)</span><br><span class="line">      .setMaster(<span class="string">"local[*]"</span>)</span><br><span class="line">    <span class="keyword">val</span> ssc = <span class="keyword">new</span> <span class="type">StreamingContext</span>(conf, <span class="type">Seconds</span>(<span class="number">10</span>))</span><br><span class="line">    ssc.checkpoint(checkpointPath)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> brokers = <span class="string">"localhost:9092"</span></span><br><span class="line">    <span class="keyword">val</span> topics = <span class="string">"ODD,EVEN"</span></span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> topicsSet = topics.split(<span class="string">","</span>).toSet</span><br><span class="line">    <span class="keyword">val</span> kafkaParams = <span class="type">Map</span>[<span class="type">String</span>, <span class="type">String</span>](<span class="string">"metadata.broker.list"</span> -&gt; brokers)</span><br><span class="line">    <span class="keyword">val</span> messages = <span class="type">KafkaUtils</span>.createDirectStream[<span class="type">String</span>, <span class="type">String</span>, <span class="type">StringDecoder</span>, <span class="type">StringDecoder</span>](</span><br><span class="line">      ssc, kafkaParams, topicsSet)</span><br><span class="line"></span><br><span class="line">    <span class="keyword">val</span> lines = messages.map(_._2)</span><br><span class="line">      .map(parseFromLogLine)</span><br><span class="line">      .filter(_.isSuccess)</span><br><span class="line">      .map(line=&gt;(x(line.get.time, line.get.kind), <span class="number">1</span>L))</span><br><span class="line">      .updateStateByKey(updateRunningSum)</span><br><span class="line"></span><br><span class="line">    lines.foreachRDD(rdd =&gt; &#123;</span><br><span class="line">      <span class="keyword">val</span> spark = <span class="type">SparkSessionSingleton</span>.getInstance(rdd.sparkContext.getConf)</span><br><span class="line">      <span class="keyword">import</span> spark.implicits._</span><br><span class="line">      <span class="keyword">val</span> df = rdd.map(x=&gt;<span class="type">Record</span>(x._1._1, x._1._2, x._2)).toDF()</span><br><span class="line"></span><br><span class="line">      <span class="comment">// 通过spark sql访问</span></span><br><span class="line">      df.createOrReplaceTempView(<span class="string">"x"</span>)</span><br><span class="line">      <span class="keyword">val</span> wordCountsDataFrame =</span><br><span class="line">        spark.sql(<span class="string">"select * from x"</span>)</span><br><span class="line">      wordCountsDataFrame.show()</span><br><span class="line">    &#125;)</span><br><span class="line">    ssc</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">// 半小时做一次统计</span></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">x</span></span>(time: <span class="type">String</span>, kind: <span class="type">String</span>): (<span class="type">String</span>, <span class="type">String</span>) = &#123;</span><br><span class="line">    <span class="keyword">val</span> x = time.split(<span class="string">":"</span>)(<span class="number">1</span>).toInt</span><br><span class="line">    <span class="keyword">val</span> y = time.split(<span class="string">":"</span>)(<span class="number">0</span>).toInt</span><br><span class="line">    <span class="keyword">if</span>(x &gt; <span class="number">30</span>) &#123;</span><br><span class="line">      (((y+<span class="number">1</span>) % <span class="number">24</span>) + <span class="string">":00"</span>, kind)</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      (y + <span class="string">":30"</span>, kind)</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="function"><span class="keyword">def</span> <span class="title">updateRunningSum</span></span>(values: <span class="type">Seq</span>[<span class="type">Long</span>], state: <span class="type">Option</span>[<span class="type">Long</span>]) = &#123;</span><br><span class="line">    <span class="type">Some</span>(state.getOrElse(<span class="number">0</span>L) + values.size)</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">case</span> <span class="class"><span class="keyword">class</span> <span class="title">Record</span>(<span class="params">time: <span class="type">String</span>, kind: <span class="type">String</span>, count: <span class="type">Long</span></span>)</span></span><br><span class="line"><span class="class"></span></span><br><span class="line"><span class="class">  <span class="title">/**</span> <span class="title">Lazily</span> <span class="title">instantiated</span> <span class="title">singleton</span> <span class="title">instance</span> <span class="title">of</span> <span class="title">SparkSession</span> <span class="title">*/</span></span></span><br><span class="line"><span class="class">  <span class="title">object</span> <span class="title">SparkSessionSingleton</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@transient</span>  <span class="keyword">private</span> <span class="keyword">var</span> instance: org.apache.spark.sql.<span class="type">SparkSession</span> = _</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">def</span> <span class="title">getInstance</span></span>(sparkConf: org.apache.spark.<span class="type">SparkConf</span>): org.apache.spark.sql.<span class="type">SparkSession</span> = &#123;</span><br><span class="line">      <span class="keyword">if</span> (instance == <span class="literal">null</span>) &#123;</span><br><span class="line">        instance = org.apache.spark.sql.<span class="type">SparkSession</span></span><br><span class="line">          .builder</span><br><span class="line">          .config(sparkConf)</span><br><span class="line">          .getOrCreate()</span><br><span class="line">      &#125;</span><br><span class="line">      instance</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="Zeppelin服务"><a href="#Zeppelin服务" class="headerlink" title="Zeppelin服务"></a>Zeppelin服务</h2><p>下载最新的<code>zeppelin</code><a href="https://zeppelin.apache.org/download.html" target="_blank" rel="noopener">安装包</a>，现在最新的版本是<code>0.6.1</code>。</p>
+<p>下载完后，解压，开箱即用。</p>
+<p>启动<code>zeppelin</code><br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">bin/zeppelin-daemon.sh start</span><br></pre></td></tr></table></figure></p>
+<p>默认启动在<code>8080</code>端口，可在<code>conf/zeppelin-site.xml</code>中修改，修改选项为<code>zeppelin.server.port</code>。</p>
+<p>新建一个<code>notebook</code>，将上述代码贴到<code>notebook</code>中，<code>zeppelin</code>默认有一个<code>spark</code>的环境，但是没有<code>kafka</code>相关的依赖，需要在<code>Dependencies</code>中加入<code>org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.0</code>，<code>org.apache.kafka:kafka-clients:0.8.2.1</code>和<code>org.apache.kafka:kafka_2.11:0.8.2.1</code>。</p>
+<p>因为我们已经将日志流注册为了<code>spark sql</code>的<code>x</code>表（忽略我起的渣名字），所以我们可以再新建一个<code>notebook</code>，在<code>paragraph</code>中做<code>sql</code>查询。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">%sql</span><br><span class="line">select * from x where kind=&quot;ODD&quot;</span><br></pre></td></tr></table></figure></p>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">%sql</span><br><span class="line">select * from x where kind=&quot;EVEN&quot;</span><br></pre></td></tr></table></figure>
+<p>在<code>zeppelin</code>中，<code>sql</code>查询自动生成图表。</p>
+<p><code>notebook</code>上方有个按钮配置定时任务，将写了<code>sql</code>查询的<code>notebook</code>配置为一分钟执行一次，好了，我们已经完成了一个简单的实时分析demo。</p>
+
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/spark/" rel="tag"># spark</a>
+          
+            <a href="/tags/flume/" rel="tag"># flume</a>
+          
+            <a href="/tags/kafka/" rel="tag"># kafka</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2016/07/05/Vue使用之配置文件加载/" rel="next" title="Vue使用之配置文件加载">
+                <i class="fa fa-chevron-left"></i> Vue使用之配置文件加载
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2016/09/18/SBT加速/" rel="prev" title="SBT加速">
+                SBT加速 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image"
+                src="https://avatars0.githubusercontent.com/u/11897616?v=3&s=140"
+                alt="cxmokai" />
+            
+              <p class="site-author-name" itemprop="name">cxmokai</p>
+              <p class="site-description motion-element" itemprop="description">会18种语言的Hello World</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">15</span>
+                    <span class="site-state-item-name">posts</span>
+                  </a>
+                </div>
+              
+
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">13</span>
+                    <span class="site-state-item-name">tags</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#日志生成"><span class="nav-number">1.</span> <span class="nav-text">日志生成</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Kafka服务"><span class="nav-number">2.</span> <span class="nav-text">Kafka服务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Flume服务"><span class="nav-number">3.</span> <span class="nav-text">Flume服务</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Spark-Streaming分析"><span class="nav-number">4.</span> <span class="nav-text">Spark Streaming分析</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#Zeppelin服务"><span class="nav-number">5.</span> <span class="nav-text">Zeppelin服务</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">cxmokai</span>
+
+  
+
+  
+</div>
+
+
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> v3.7.1</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/theme-next/hexo-theme-next">NexT.Gemini</a> v6.2.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.2.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.2.0"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=6.2.0"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=6.2.0"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.2.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.2.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.2.0"></script>
+
+
+
+  
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

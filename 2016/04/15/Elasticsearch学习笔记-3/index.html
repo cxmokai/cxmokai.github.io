@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next gemini use-motion" lang="zh-Hans">
+<head>
+  <meta charset="UTF-8"/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2"/>
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform" />
+<meta http-equiv="Cache-Control" content="no-siteapp" />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css" />
+
+<link href="/css/main.css?v=6.2.0" rel="stylesheet" type="text/css" />
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.2.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.2.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.2.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.2.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Gemini',
+    version: '6.2.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="我们在上一篇中简单的讲了一些DSL的查询操作，这篇学习笔记中，继续记录一些DSL的操作。 短语搜索如果我们用上一篇中的方法去搜索rock climbing得到的结果中可能有记录只包含rock或者只包含climbing。如果我想要记录的记录同时包含rock和climbing怎么办，只需用match_phrase替换match即可。12345678curl -XGET &quot;http://localhos">
+<meta name="keywords" content="elasticsearch">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Elasticsearch学习笔记(三)">
+<meta property="og:url" content="https://cxmokai.github.io/2016/04/15/Elasticsearch学习笔记-3/index.html">
+<meta property="og:site_name" content="500">
+<meta property="og:description" content="我们在上一篇中简单的讲了一些DSL的查询操作，这篇学习笔记中，继续记录一些DSL的操作。 短语搜索如果我们用上一篇中的方法去搜索rock climbing得到的结果中可能有记录只包含rock或者只包含climbing。如果我想要记录的记录同时包含rock和climbing怎么办，只需用match_phrase替换match即可。12345678curl -XGET &quot;http://localhos">
+<meta property="og:locale" content="zh-Hans">
+<meta property="og:updated_time" content="2018-05-14T12:59:36.316Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Elasticsearch学习笔记(三)">
+<meta name="twitter:description" content="我们在上一篇中简单的讲了一些DSL的查询操作，这篇学习笔记中，继续记录一些DSL的操作。 短语搜索如果我们用上一篇中的方法去搜索rock climbing得到的结果中可能有记录只包含rock或者只包含climbing。如果我想要记录的记录同时包含rock和climbing怎么办，只需用match_phrase替换match即可。12345678curl -XGET &quot;http://localhos">
+
+
+
+
+
+
+  <link rel="canonical" href="https://cxmokai.github.io/2016/04/15/Elasticsearch学习笔记-3/"/>
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>Elasticsearch学习笔记(三) | 500</title>
+  
+
+
+
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage" lang="zh-Hans">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">500</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+      
+        <p class="site-subtitle">菜鸟程序员</p>
+      
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="Toggle navigation bar">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br />Home</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br />Tags</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br />Archives</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+            
+
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="https://cxmokai.github.io/2016/04/15/Elasticsearch学习笔记-3/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="cxmokai">
+      <meta itemprop="description" content="会18种语言的Hello World">
+      <meta itemprop="image" content="https://avatars0.githubusercontent.com/u/11897616?v=3&s=140">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="500">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">Elasticsearch学习笔记(三)
+              
+            
+          </h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+
+              
+                
+              
+
+              <time title="Created: 2016-04-15 22:44:24" itemprop="dateCreated datePublished" datetime="2016-04-15T22:44:24+08:00">2016-04-15</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">Edited on</span>
+                
+                <time title="Modified: 2018-05-14 20:59:36" itemprop="dateModified" datetime="2018-05-14T20:59:36+08:00">2018-05-14</time>
+              
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>我们在上一篇中简单的讲了一些DSL的查询操作，这篇学习笔记中，继续记录一些DSL的操作。</p>
+<h2 id="短语搜索"><a href="#短语搜索" class="headerlink" title="短语搜索"></a>短语搜索</h2><p>如果我们用上一篇中的方法去搜索<code>rock climbing</code>得到的结果中可能有记录只包含<code>rock</code>或者只包含<code>climbing</code>。如果我想要记录的记录同时包含<code>rock</code>和<code>climbing</code>怎么办，只需用<code>match_phrase</code>替换<code>match</code>即可。<br><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">curl -XGET <span class="string">"http://localhost:9200/_search/?pretty"</span> -d<span class="string">'</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">      "query": &#123;</span></span><br><span class="line"><span class="string">        "match_phrase": &#123;</span></span><br><span class="line"><span class="string">          "about": "rock climbing"</span></span><br><span class="line"><span class="string">        &#125;</span></span><br><span class="line"><span class="string">      &#125;</span></span><br><span class="line"><span class="string">&#125;'</span></span><br></pre></td></tr></table></figure></p>
+<a id="more"></a>
+<h2 id="高亮搜索"><a href="#高亮搜索" class="headerlink" title="高亮搜索"></a>高亮搜索</h2><p>如果我们拿到了搜索结果，想要在页面上显示，并且高亮我们匹配到的关键字。<br><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">curl -XGET <span class="string">"http://localhost:9200/_search/?pretty"</span> -d<span class="string">'</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">      "query": &#123;</span></span><br><span class="line"><span class="string">        "match_phrase": &#123;</span></span><br><span class="line"><span class="string">          "about": "rock climbing"</span></span><br><span class="line"><span class="string">        &#125;</span></span><br><span class="line"><span class="string">      &#125;,</span></span><br><span class="line"><span class="string">      "highlight": &#123;</span></span><br><span class="line"><span class="string">            "fields": &#123;</span></span><br><span class="line"><span class="string">                "about": &#123;&#125;</span></span><br><span class="line"><span class="string">            &#125;</span></span><br><span class="line"><span class="string">        &#125;</span></span><br><span class="line"><span class="string">&#125;'</span></span><br></pre></td></tr></table></figure></p>
+<p>返回结果：<br><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">...</span><br><span class="line"><span class="string">"highlight"</span>: &#123;</span><br><span class="line">    <span class="string">"about"</span>: [</span><br><span class="line">       <span class="string">"I love to go &lt;em&gt;rock&lt;/em&gt; &lt;em&gt;climbing&lt;/em&gt;"</span></span><br><span class="line">    ]</span><br><span class="line"> &#125;</span><br><span class="line"> ...</span><br></pre></td></tr></table></figure></p>
+<p>我们发现结果和之前的基本相同，但是多了一个<code>highlight</code>的字段，并用<code>html</code>的<code>em</code>标签强调了我们的关键字。然后我们就可以针对<code>em</code>标签写相应的css来高亮我们的关键字了。</p>
+<h2 id="聚合"><a href="#聚合" class="headerlink" title="聚合"></a>聚合</h2><p>Elasticsearch提供聚合的功能，关键字是<code>aggregations</code>，类似<code>sql</code>中的<code>group by</code>。</p>
+<p>我们用一份官方的测试数据来学习聚合吧。</p>
+<ul>
+<li><p>下载数据</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">curl -O -L https://github.com/bly2k/files/blob/master/accounts.zip</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>解压数据</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">unzip accounts.zip</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>导入数据</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 导入数据到Elasticsearch</span></span><br><span class="line">curl -XPOST <span class="string">'localhost:9200/bank/account/_bulk?pretty'</span> --data-binary @accounts.json</span><br></pre></td></tr></table></figure>
+</li>
+<li><p>确认导入成功</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 查看索引情况</span></span><br><span class="line">curl <span class="string">'localhost:9200/_cat/indices?v'</span></span><br></pre></td></tr></table></figure>
+<p>输出：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 索引bank就是我们插入的记录了，你可以看到，它有1000条记录</span></span><br><span class="line">health status index                   pri rep docs.count docs.deleted store.size pri.store.size</span><br><span class="line">green  open   .marvel-es-1-2016.04.15   1   1      59598          126     38.9mb         19.5mb</span><br><span class="line">green  open   bank                      5   1       1000            0    949.9kb        484.9kb</span><br><span class="line">green  open   megacorp                  5   1         11            0     88.6kb         44.3kb</span><br><span class="line">green  open   .marvel-es-data-1         1   1         12           42     23.2kb         11.7kb</span><br><span class="line">green  open   <span class="built_in">test</span>                      5   1          1            0      7.4kb          3.7kb</span><br></pre></td></tr></table></figure>
+</li>
+</ul>
+<p>这是一份虚拟的银行账户信息，我们通过一条记录来看看数据的schema：<br><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">&#123;</span><br><span class="line"> <span class="string">"_index"</span>: <span class="string">"bank"</span>,</span><br><span class="line"> <span class="string">"_type"</span>: <span class="string">"account"</span>,</span><br><span class="line"> <span class="string">"_id"</span>: <span class="string">"44"</span>,</span><br><span class="line"> <span class="string">"_score"</span>: 1,</span><br><span class="line"> <span class="string">"_source"</span>: &#123;</span><br><span class="line">    <span class="string">"account_number"</span>: 44, <span class="comment"># 客户编号</span></span><br><span class="line">    <span class="string">"balance"</span>: 34487, <span class="comment"># 余额</span></span><br><span class="line">    <span class="string">"firstname"</span>: <span class="string">"Aurelia"</span>, <span class="comment"># 姓</span></span><br><span class="line">    <span class="string">"lastname"</span>: <span class="string">"Harding"</span>, <span class="comment"># 名</span></span><br><span class="line">    <span class="string">"age"</span>: 37, <span class="comment"># 年龄</span></span><br><span class="line">    <span class="string">"gender"</span>: <span class="string">"M"</span>, <span class="comment"># 性别</span></span><br><span class="line">    <span class="string">"address"</span>: <span class="string">"502 Baycliff Terrace"</span>, <span class="comment"># 家庭地址</span></span><br><span class="line">    <span class="string">"employer"</span>: <span class="string">"Orbalix"</span>, <span class="comment"># 雇主</span></span><br><span class="line">    <span class="string">"email"</span>: <span class="string">"aureliaharding@orbalix.com"</span>, <span class="comment"># 邮箱</span></span><br><span class="line">    <span class="string">"city"</span>: <span class="string">"Yardville"</span>, <span class="comment"># 城市</span></span><br><span class="line">    <span class="string">"state"</span>: <span class="string">"DE"</span> <span class="comment"># 州</span></span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>既然我们已经有了数据，就让我们开始聚合吧。</p>
+<h4 id="男女比例"><a href="#男女比例" class="headerlink" title="男女比例"></a>男女比例</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">curl -XGET <span class="string">"http://localhost:9200/bank/account/_search"</span> -d<span class="string">'</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    "aggs": &#123;</span></span><br><span class="line"><span class="string">        "gender": &#123;</span></span><br><span class="line"><span class="string">            "terms":&#123;</span></span><br><span class="line"><span class="string">                "field": "gender"</span></span><br><span class="line"><span class="string">            &#125;   </span></span><br><span class="line"><span class="string">        &#125;</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">&#125;'</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">"aggregations"</span>: &#123;</span><br><span class="line">  <span class="string">"gender"</span>: &#123;</span><br><span class="line">     <span class="string">"doc_count_error_upper_bound"</span>: 0,</span><br><span class="line">     <span class="string">"sum_other_doc_count"</span>: 0,</span><br><span class="line">     <span class="string">"buckets"</span>: [</span><br><span class="line">        &#123;</span><br><span class="line">           <span class="string">"key"</span>: <span class="string">"m"</span>,</span><br><span class="line">           <span class="string">"doc_count"</span>: 507</span><br><span class="line">        &#125;,</span><br><span class="line">        &#123;</span><br><span class="line">           <span class="string">"key"</span>: <span class="string">"f"</span>,</span><br><span class="line">           <span class="string">"doc_count"</span>: 493</span><br><span class="line">        &#125;</span><br><span class="line">     ]</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="男女的平均年龄"><a href="#男女的平均年龄" class="headerlink" title="男女的平均年龄"></a>男女的平均年龄</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line">curl -XGET <span class="string">"http://localhost:9200/bank/account/_search"</span> -d<span class="string">'</span></span><br><span class="line"><span class="string">&#123;</span></span><br><span class="line"><span class="string">    "aggs": &#123;</span></span><br><span class="line"><span class="string">        "gender": &#123;</span></span><br><span class="line"><span class="string">            "terms": &#123;</span></span><br><span class="line"><span class="string">                "field": "gender"</span></span><br><span class="line"><span class="string">            &#125;,</span></span><br><span class="line"><span class="string">            "aggs": &#123;</span></span><br><span class="line"><span class="string">                "avg_age": &#123;</span></span><br><span class="line"><span class="string">                   "avg": &#123;"field":"age"&#125;</span></span><br><span class="line"><span class="string">                &#125;</span></span><br><span class="line"><span class="string">            &#125;</span></span><br><span class="line"><span class="string">        &#125;</span></span><br><span class="line"><span class="string">    &#125;</span></span><br><span class="line"><span class="string">&#125;'</span></span><br></pre></td></tr></table></figure>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">"aggregations"</span>: &#123;</span><br><span class="line">  <span class="string">"gender"</span>: &#123;</span><br><span class="line">      <span class="string">"doc_count_error_upper_bound"</span>: 0,</span><br><span class="line">      <span class="string">"sum_other_doc_count"</span>: 0,</span><br><span class="line">      <span class="string">"buckets"</span>: [</span><br><span class="line">         &#123;</span><br><span class="line">            <span class="string">"key"</span>: <span class="string">"m"</span>,</span><br><span class="line">            <span class="string">"doc_count"</span>: 507,</span><br><span class="line">            <span class="string">"avg_age"</span>: &#123;</span><br><span class="line">               <span class="string">"value"</span>: 30.027613412228796</span><br><span class="line">            &#125;</span><br><span class="line">         &#125;,</span><br><span class="line">         &#123;</span><br><span class="line">            <span class="string">"key"</span>: <span class="string">"f"</span>,</span><br><span class="line">            <span class="string">"doc_count"</span>: 493,</span><br><span class="line">            <span class="string">"avg_age"</span>: &#123;</span><br><span class="line">               <span class="string">"value"</span>: 30.3184584178499</span><br><span class="line">            &#125;</span><br><span class="line">         &#125;</span><br><span class="line">      ]</span><br><span class="line">  &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>看完这两个例子，对聚合有个大概的了解吧，具体的后面的笔记中会详细讲解。</p>
+
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/elasticsearch/" rel="tag"># elasticsearch</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2016/04/15/Elasticsearch学习笔记-2/" rel="next" title="Elasticsearch学习笔记(二)">
+                <i class="fa fa-chevron-left"></i> Elasticsearch学习笔记(二)
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2016/04/16/Elasticsearch学习笔记-4/" rel="prev" title="Elasticsearch学习笔记(四)">
+                Elasticsearch学习笔记(四) <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image"
+                src="https://avatars0.githubusercontent.com/u/11897616?v=3&s=140"
+                alt="cxmokai" />
+            
+              <p class="site-author-name" itemprop="name">cxmokai</p>
+              <p class="site-description motion-element" itemprop="description">会18种语言的Hello World</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">15</span>
+                    <span class="site-state-item-name">posts</span>
+                  </a>
+                </div>
+              
+
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">13</span>
+                    <span class="site-state-item-name">tags</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#短语搜索"><span class="nav-number">1.</span> <span class="nav-text">短语搜索</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#高亮搜索"><span class="nav-number">2.</span> <span class="nav-text">高亮搜索</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#聚合"><span class="nav-number">3.</span> <span class="nav-text">聚合</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#男女比例"><span class="nav-number">3.0.1.</span> <span class="nav-text">男女比例</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#男女的平均年龄"><span class="nav-number">3.0.2.</span> <span class="nav-text">男女的平均年龄</span></a></li></ol></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2018</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">cxmokai</span>
+
+  
+
+  
+</div>
+
+
+
+
+  <div class="powered-by">Powered by <a class="theme-link" target="_blank" href="https://hexo.io">Hexo</a> v3.7.1</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">Theme &mdash; <a class="theme-link" target="_blank" href="https://github.com/theme-next/hexo-theme-next">NexT.Gemini</a> v6.2.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.2.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.2.0"></script>
+
+
+
+  
+  
+
+
+  <script type="text/javascript" src="/js/src/affix.js?v=6.2.0"></script>
+
+  <script type="text/javascript" src="/js/src/schemes/pisces.js?v=6.2.0"></script>
+
+
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.2.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.2.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.2.0"></script>
+
+
+
+  
+
+
+
+	
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
